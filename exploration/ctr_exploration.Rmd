@@ -1,0 +1,136 @@
+---
+title: "Avazu CTR Dataset Exploration"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+require(data.table)
+require(ggplot2)
+```
+
+First, load in the first 2,000,000 rows of the `train.csv` file. There are actually 40 million observations (it's a big dataset). Check out the data with `str`
+```{r}
+DT <- fread('../data/train_5mil.csv'
+            , colClasses = list(character = 'id'))
+
+# Let's check out the data with the basic `str` function and make a note of what's categorical and what's not.
+print(str(DT))
+
+timeVars <- c('hour')
+yVar <- c('click')
+catVars <- c('C1'
+             , 'banner_pos'
+             , 'site_category'
+             , 'app_category'
+             , 'device_type'
+             , 'device_conn_type'
+             , 'C15'
+             , 'C16'
+             , 'C18')
+
+ctsVars <- c('C14'
+             , 'C17'
+             , 'C19'
+             , 'C20' # note that this var has a null/default val of -1
+             , 'C21') 
+```
+
+I pare down the fields (there are 24 on load) to just the fields that have < 1000 unique values. The other fields are "hyper categorical" and are kind of hard to work with. Reading [the description](https://www.kaggle.com/c/avazu-ctr-prediction/data) of the Arazu dataset, there are not many fields we anticipate to be raw numeric/continuous data. It's possible that some of the `C14`-`C21` fields are continuous features, as those fields take on a few hundreds of values. The majority of the features are likely categorical, e.g. `device_type`, `app_category`, etc.
+```{r}
+uniqueCount <- as.list(DT[, lapply(.SD, FUN = function(x){length(unique(x))})])
+smallUniqueCount <- uniqueCount[as.numeric(uniqueCount) <= 200]
+smallUniqueCountDT <- data.table('field' = names(smallUniqueCount)
+                                 , 'unique_values' = as.numeric(unlist(smallUniqueCount)))
+ggplot(smallUniqueCountDT, aes(field, y = unique_values)) +
+  geom_bar(stat = 'identity') +
+  coord_flip()
+```
+
+Now let's check out the number of unique values in the brutally categorical realm.
+```{r}
+bigUniqueCount <- uniqueCount[as.numeric(uniqueCount) > 200]
+bigUniqueCountDT <- data.table('field' = names(bigUniqueCount)
+                                 , 'unique_values' = as.numeric(unlist(bigUniqueCount)))
+ggplot(bigUniqueCountDT, aes(field, y = unique_values)) +
+  geom_bar(stat = 'identity') +
+  coord_flip()
+```
+
+
+### Dealing with mercelessly categorical variables
+Some variables are brutally categorical, e.g. they take on 5000 different values. Without really knowing what each field means (especially in the case that the data has been obfuscated), one-hot-encoding a variable with 5000+ unique levels is a bad idea. But in a lot of cases, these fields take on one specific value most of the time, e.g. some default or null encoding. For example, the `app_domain` variable spends 68\% of the time with the value `7801e8d9`. So the approach to these variables is to binarize them to 0 or 1 depending on whether the variable takes on its determined default/null value.
+
+The intuition behind this approach is that with these default-heavy, brutally categorical variables, it may not be the actual level of the variable that an observation takes on that makes the variable important, it might rather just be that the variable is present or not present is what makes the observed variable important.
+
+```{r, results='hold'}
+freqThres <- 0.3 # if >= 100*freqThres% of values for a field take on a single value, call this out.
+highOccDefaultFields <- list()
+
+for(col in names(DT)){
+  tab <- table(DT[, get(col)])
+  maxOcc <- tab[which.max(tab)]
+  maxOccVal <- names(maxOcc)
+  occFreq <- nrow(DT[DT[, get(col)] == maxOccVal])/nrow(DT)
+  
+  if(occFreq >= freqThres){
+    highOccDefaultFields[[col]] <- maxOccVal
+    cat(col, ' ---- ', maxOccVal, 'occurs', 100*occFreq, '%\n')
+  }
+}
+```
+
+So even though it looks like we might be suffering from data that has "catastrophically categorical data," a lot of these fields actually just spend most of their time in one mode. Especially the fields `r intersect(names(bigUniqueCount), names(highOccDefaultFields))`, which have over 1,000 unique values, spend a lot of time at one single value. So for those fields, instead of having to make thousands of one-hot vectors, let's just turn them into binary fields with "0" meaning "default value" and "1" meaning "non-default value."
+
+```{r}
+toBinarizeVars <- intersect(names(bigUniqueCount), names(highOccDefaultFields))
+
+# Binarize these hopelessly categorical fields with "default/non-default" encoding.
+for(col in toBinarizeVars){
+  DT[, eval(col) := ifelse(get(col) == highOccDefaultFields[[col]], 1, 0)]
+}
+
+# add these binary vars to set of categorical vars
+catVars <- c(catVars
+             , c(toBinarizeVars))
+```
+
+### Leftover variables
+```{r}
+leftoverVars <- setdiff(names(DT), c(timeVars, yVar, ctsVars, catVars))
+
+if(length(leftoverVars) > 0){
+  DT[, eval(leftoverVars) := NULL]
+}
+```
+
+The variables `r leftoverVars` are brutally categorical but do not seem to take on any type of default/null/modal value. `id` is obviously not going to be useful. The others have to with device specifications. While they might be useful to someone trying to win the Kaggle competition, we omit them because we suspect they're not going to fundamentally reduce model performance.
+
+Admittedly, maybe tracking someone's device IP and making a feature like "number of times device IP has been observed" would be useful, but due to the data trimming I did (read README.md), there's no guarantee this data is in the right order. Feature engineering for another time.
+
+### Time variable manipulation
+The `hour` variable is in `YYMMDDHH` format [according to Kaggle](https://www.kaggle.com/c/avazu-ctr-prediction/data), so let's transform it into `day_of_week` and `hour_of_day`. Note that we only have dates from October 2014, so any time resolution coarser than day of the week is useless.
+
+```{r}
+# make `hour` into POSIX time, mine hour and day of week
+DT[, hour := as.character(hour)]
+DT[, dateTime := as.POSIXct(get('hour')
+                            , format = '%y%m%d%H'
+                            , tz = 'UTC')]
+DT[, hour := lubridate::hour(dateTime)]
+DT[, day_of_week := lubridate::wday(dateTime)]
+
+# add hour and day_of_week to cts vars
+ctsVars <- c(ctsVars
+             , c('hour', 'day_of_week'))
+
+DT[, dateTime := NULL]
+print(head(DT))
+
+# final set of x vars
+xVar <- c(ctsVars, catVars)
+```
+
+
+#### Standardize missing/null/default values
