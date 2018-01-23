@@ -8,7 +8,6 @@
 require(data.table, quietly = TRUE)
 require(optparse, quietly = TRUE)
 require(lubridate, quietly = TRUE)
-require(feather, quietly = TRUE)
 
 # continuous variables
 CTSVARS <- c('C14'
