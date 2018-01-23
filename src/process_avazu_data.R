@@ -97,7 +97,7 @@ for(col in BINARIZEVARS){
   tab <- table(DT[, get(col)])
   maxOcc <- tab[which.max(tab)]
   maxOccVal <- names(maxOcc)
-  DT[, eval(col) := ifelse(get(col) == maxOccVal, 1, 0)]
+  DT[, eval(col) := ifelse(get(col) == maxOccVal, 0, 1)]
 }
 
 
