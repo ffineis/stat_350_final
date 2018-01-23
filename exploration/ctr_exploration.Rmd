@@ -5,12 +5,12 @@ output:
     df_print: paged
 ---
 
-```{r}
+```{r, message=FALSE}
 require(data.table)
 require(ggplot2)
 ```
 
-First, load in the first 2,000,000 rows of the `train.csv` file. There are actually 40 million observations (it's a big dataset). Check out the data with `str`
+First, load in the 5,000,000 rows selected from the original `train.csv` file. There are actually 40 million observations (it's a big dataset). Check out the data with `str`
 ```{r}
 DT <- fread('../data/train_5mil.csv'
             , colClasses = list(character = 'id'))
@@ -134,3 +134,15 @@ xVar <- c(ctsVars, catVars)
 
 
 #### Standardize missing/null/default values
+The only variable that has a sort of obviously "missing" value is `C20`, where the value -1 looks like it's being used as a missing value. Since trees and ensemble tree models can handle missing values via extra nodes, I'll replace the -1 value with `NA_real_`'s.
+
+```{r}
+par(mfrow = c(1, 2))
+hist(DT$C20
+     , main = 'C20 distribution')
+hist(DT$C20[DT$C20 != -1]
+     , main = 'C20!=-1 distribution')
+
+DT[C20 == -1, C20 := NA_integer_]
+```
+
