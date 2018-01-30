@@ -1,8 +1,11 @@
+#' @title Back out trees from boosted tree model from xgboost package
 #' @name GetTrees
 #' @description Make the output of xgboost::xgb.model.dt.tree more useful
 #' @param featureNames names of data as it was sent into xgboost::xgb.train
 #' @param model an xgb.Booster model
 #' @return a data.table of trees
+#' @importFrom xgboost xgb.model.dt.tree
+#' @importFrom data.table :=
 GetTrees <- function(featureNames, model){
   trees <- xgboost::xgb.model.dt.tree(featureNames
                                       , model = model)
@@ -17,12 +20,15 @@ GetTrees <- function(featureNames, model){
   return(trees)
 }
 
+#' @title Embed data in a single tree created from GetTrees
 #' @name EmbedInTree
-#' @description Send a datapoint through a decision tree, embedding the data in binary tree-leaf space.
+#' @description Send a datapoint through a decision tree, embedding the data in binary tree-leaf space, that tree
+#' being a structure created with the GetTrees function.
 #' @param x input data (matrix, data.frame, or data.table). Shape is n x p.
 #' @param tree processed data.table output from xgboost::xgb.model.dt.tree
 #' @return binary embedding matrix. Of shape n x #-terminal-nodes-in-tree
 EmbedInTree <- function(x, tree){
+  
   nObs <- dim(x)[1]
   embeddedMat <- matrix(0
                         , nrow = nObs
@@ -62,8 +68,17 @@ EmbedInTree <- function(x, tree){
   return(embeddedMat)
 }
 
-
-EmbeddingLayer <- function(x, model){
+#' @title Embed data in high-dimensional space with a boosted tree model.
+#' @name EmbedBooster
+#' @description Embed a dataset into a high-dimensional binary space with a boosted tree model.
+#' Largely just assembles trees from XGBoost model and sends data through each tree.
+#' @param x input data (matrix, data.frame, or data.table). Shape is n x p.
+#' @param model an xgb.Booster model
+#' @return data embedded into high-dim space
+#' @export
+EmbedBooster <- function(x, model){
+  
+  # Get trees!
   featureNames <- names(x)
   trees <- GetTrees(featureNames
                     , model = model)
