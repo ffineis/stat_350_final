@@ -1,0 +1,115 @@
+---
+title: "Objective function exploration"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, message = FALSE, include = FALSE}
+require(data.table)
+require(ggplot2)
+require(latex2exp)
+
+knitr::opts_chunk$set(warning = FALSE
+                      , message = FALSE
+                      , results = 'hold'
+                      , fig.width = 9
+                      , fig.height = 5.8
+                      , fig.show = 'hold')
+```
+
+On page 2 of the **Practical Lessons from Predicting Clicks on Ads at Facebook** paper, the authors go into *Normalize Entropy* (or *Normalized Cross-Entropy*), the cost function they seek to minimize.
+
+## Cross entropy
+Cross entropy is a measure of distance between two probability distributions, $p$ and $q$. The output of a logistic classifier model is a probability distribution over the possible classes; in the case of binary classification, that is a 2-class discrete distribution for $Y$, $\Omega = \{-1, 1\}$. For each prediction we get $Pr(Y=1)$ and $1 - Pr(Y=1) = Pr(Y=0)$. We can compare this distribution to the true distribution, which is $Pr(Y=1) = 1$ when $Y=1$ or $Pr(Y=0)$ when $Y=0$. Intuitively it makes sense that the largest difference between two 2-class discrete distributions, $p$ and $q$, when $p$ is constricted to a degenerate distribution is for $q$ to be $Pr(Y = 0) = 0.5$.
+
+Suppose the distribution $p$ is the "true label distribution random variable" taking on values in the set $\{y, 1-y\}$ and $q$ is the "estimate distribution random variable" taking on values in $\{\hat{y}, 1-\hat{y}\}$. The formal definition of cross entropy for two binary discrete distribution is then $$H(p, q) = -\sum_{x}p(x)\log(q(x)) = -ylog(\hat{y}) - (1-y)\log(1-\hat{y})$$.
+
+In the case of discrete labels, $y \in \{0, 1\}$. If $y = 1$ and $\hat{y} = 1$, then $H(p, q) = -1*log(1) + (1-1)*log(1-1) = 0$. If $y = 0$ and $\hat{y} = 0$, then $H(p, q)= -0*log(0) + (1-0)*log(1) = 0$. So $H(p, q)$ ranges between 0 and $-\infty$, where $|H(p, q)$ is larger the more "confident" the model is while being incorrect (e.g. the model is 99% sure the class is 1, but the true label is 0).
+
+```{r}
+n <- 1000
+
+y <- c(rep(0, n), rep(1, n))
+y0Preds <- seq(1e-5, 1-1e-5, length.out = n)
+y1Preds <- seq(1e-5, 1-1e-5, length.out = n)
+
+crossEntDT <- data.table(y = y
+                         , yHat = c(y0Preds, y1Preds)
+                         , class = factor(y))
+crossEntDT[, crossEntropy := -y*log(yHat) - (1-y)*log(1-yHat)]
+
+ggplot(crossEntDT
+       , mapping = aes(x = yHat, y = crossEntropy, group = class, color = class)) +
+  geom_line() +
+  ylab('cross entropy') +
+  xlab(latex2exp::TeX('$\\hat{y}$ (predicted Pr(Y=1))')) +
+  ggtitle('Cross entropy')
+```
+
+For training a logistic classifier it's typical to use the *logistic loss* (or "log loss") as the function to minimize, which is just the average cross entropy over the sample: $$LL = -\frac{1}{n}\sum_{i=1}^{n}(ylog(\hat{y}) + (1-y)\log(1-\hat{y}))$$
+
+Since $\hat{y}$ can be expressed in terms of $\vec{w}\vec{x}$ via the logistic function, we can taking the derivative of log loss with respect to $\vec{w}$ to get the gradient - the direction of greatest increase in loss - and move directly opposite of that direction.
+
+When the labels are $y \in \{-1, 1\}$ instead of $\{0, 1\}$, log loss is changed to $$H(p, q) = -\frac{(1+y)}{2}\log(\hat{y}) - \frac{(1-y)}{2}\log(1-\hat{y})$$ This is called **binary cross entropy**. As you may have guessed, the average binary cross entroy over the training set is called **binary log loss**, which is a special case of **multiclass log loss**. Note that binary cross entropy is the same thing as log loss, it's just that the "negative class label" is $y=-1$ instead of $y=0$:
+
+
+```{r}
+binCrossEntDT <- copy(crossEntDT)
+binCrossEntDT[, y := c(rep(-1, n), rep(1, n))]
+binCrossEntDT[, class := as.factor(get('y'))]
+binCrossEntDT[, crossEntropy := -((1+y)/2)*log(yHat) - ((1-y)/2)*log(1-yHat)]
+
+ggplot(binCrossEntDT
+       , mapping = aes(x = yHat, y = crossEntropy, group = class, color = class)) +
+  geom_line() +
+  ylab('binary cross entropy') +
+  xlab(latex2exp::TeX('$\\hat{y}$ (predicted Pr(Y=1))')) +
+  ggtitle('Binary cross entropy')
+```
+
+
+## Normalized cross entropy
+The authors of the paper refer to their loss function as **Normalized Cross-Entropy**:
+
+$$NE = \frac{-\frac{1}{n}\sum_{i=1}^{n}(\frac{(1+y)}{2}\log(\hat{y}) + \frac{(1-y)}{2}\log(1-\hat{y}))}{-CTR\log(CTR) - (1-CTR)\log(1-CTR)}$$
+where *CTR* is the **background click through rate**, the average empirical fraction of clicks to "impressions." Impressions are just views. So $NE$ is just a normalized binary log loss. The numerator is just binary log loss; the denominator of the $NE$ expression is the entropy at the empirical CTR level - i.e. the log loss we would get if our model just predicted $P(Y=1) = CTR$ for every impression. The authors decided to divide binary log loss by "background" entropy because
+
+> "the closer the background CTR is to either 0 or 1, the easier it is to achieve a better log loss. Dividing by the entropy of the background CTR makes the NE insensitive to the background CTR"
+
+This is to say, if the background CTR were say, 0.9999, a rule that just predicted 0.9999 would be pretty strong. But if the CTR were 0.5 (half of people click, half don't), a model that was always 50\% sure that a person would click on an add would be pretty bad.
+
+Here is an example of how the background CTR entropy correction impacts the binary log loss. Suppose we have a background CTR of 0.35. That is, $Y \sim bernoulli(0.35)$. Then the denominator of $NE$ will be $-0.35\log(0.35) - (1-0.35)\log(1-0.35) = 0.6474$. Below is a plot of *NE* and binary cross entropy losses vs. background CTR when the supposed model outputs $\hat{y}$ equal to whatever the background CTR level is.
+
+```{r}
+neLosses <- NULL
+binLogLosses <- NULL
+ctrs <- seq(1e-3, 1-1e-3, length.out = 500)
+
+for(p in ctrs){
+
+  y <- rbinom(20000
+              , size = 1
+              , prob = p)
+  predDT <- data.table(y = ifelse(y == 0, -1, 1)
+                       , yHat = mean(y == 1)) # also interesting when you set this to 0.5
+  predDT[, crossEntropy := -((1+y)/2)*log(yHat) - ((1-y)/2)*log(1-yHat)]
+  
+  ctr <- mean(predDT[, y] == 1)
+  ctrEntropy <- -ctr*log(ctr) - (1-ctr)*log(1-ctr)
+  binLogLosses <- c(binLogLosses, predDT[, mean(crossEntropy)])
+  neLosses <- c(neLosses, predDT[, mean(crossEntropy)] / ctrEntropy)
+}
+
+lossDT <- data.table(ctr = c(ctrs, ctrs)
+                     , loss = c(neLosses, binLogLosses)
+                     , loss_type = factor(c(rep('NE', length(ctrs)), rep('Bin LL', length(ctrs)))))
+ggplot(lossDT[loss <= 50]
+       , mapping = aes(x = ctr, y = loss, group = loss_type, color = loss_type)) +
+  geom_line(size = 1.5) +
+  xlab('Background CTR') +
+  ggtitle(TeX('Binary log loss vs Normalized binary log loss while $\\hat{y} = 0.5$'))
+```
+
+In line with the authors' claims, regular binary log loss is not independent of the background CTR. That is, when background CTR is close to either 0 or 1, it would be easy to build a model that minimizes binary log loss by simply predicting the CTR. This is undesirable - we wouldn't want the best option (in terms of loss) to happen to be the model that just outputs background CTR. As we can see though, we cannot employ this hack if using normalized entropy as an objective function, because loss is independent of the background CTR.
+
