@@ -6,6 +6,9 @@
 \usage{
 ValidateXgboostInput(inputNames)
 }
+\arguments{
+\item{inputNames}{names of params being sent as kwargs to do.call(xgboost, ...)}
+}
 \description{
 Make sure we're passing in valid input into xgb.train
 }

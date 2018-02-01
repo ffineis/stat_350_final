@@ -1,5 +1,6 @@
 #' @title Validate input passed to xgb.train
 #' @name ValidateXgboostInput
+#' @param inputNames names of params being sent as kwargs to do.call(xgboost, ...)
 #' @description Make sure we're passing in valid input into xgb.train
 ValidateXgboostInput <- function(inputNames){
 	validInputNames <- c('data'

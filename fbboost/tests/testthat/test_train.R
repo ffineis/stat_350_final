@@ -1,7 +1,6 @@
 # ---- Load reqd packages
 library(testthat)
 library(data.table)
-library(xgboost)
 
 # ---- Clear environment
 rm(list = ls())
@@ -50,7 +49,7 @@ nRounds <- 3
 # --------------- #
 
 # ---- CONTEXT: xgb.train wrapper tests
-context('xgb.train wrapper testing...')
+context('WrapXgbTrain testing...')
 
 test_that('WrapXgbTrain can work with y being a vector', {
 	bst <- WrapXgbTrain(x = binaryClassDT[, .SD, .SDcols = varNames]

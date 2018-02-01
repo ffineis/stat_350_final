@@ -2,7 +2,7 @@
 % Please edit documentation in R/trees.R
 \name{EmbedInTree}
 \alias{EmbedInTree}
-\title{Embed data in a single tree created from GetTrees}
+\title{Embed data in a single tree created from GetTreeTable}
 \usage{
 EmbedInTree(x, tree)
 }
@@ -16,5 +16,5 @@ binary embedding matrix. Of shape n x #-terminal-nodes-in-tree
 }
 \description{
 Send a datapoint through a decision tree, embedding the data in binary tree-leaf space, that tree
-being a structure created with the GetTrees function.
+being a structure created with the GetTreeTable function.
 }
