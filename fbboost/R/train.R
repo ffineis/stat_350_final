@@ -43,3 +43,38 @@ WrapXgbTrain <- function(x, y, ...){
   bst <- do.call(xgboost::xgb.train, args)
   return(bst)
 }
+
+#' @title Fit a penalized least squares model to data in high-dimensional tree space
+#' @name Fbboost
+#' @description Fit a penalized least squares model to data in high-dimensional tree space using a
+#' boosted tree model
+#' @param x input data (matrix, data.frame, or data.table). Shape is n x p.
+#' @param y input labels or name of target variable present in x.
+#' @param booster a fitted xgb.Booster model if you've already trained the booster. Can also supply
+#' parameters to train an xgboost model here
+#' @param crossVal should linear model be cross validated?
+#' @param nFolds if crossVal is TRUE, number of folds used to train linear model
+#' @param ... arguments to xgboost::xgb.train
+#' @return fitted glmnet model
+Fbboost <- function(x, y, booster=NULL, crossVal = TRUE, nFolds = 5, ...){
+  if(is.null(booster)){
+    booster <- WrapXgbTrain(x
+                            , y = y
+                            , ...)
+  }
+  
+  embedMat <- EmbedBooster(x
+                           , model = booster)
+  
+  if(crossVal){
+    linModel <- cv.glmnet(embedMat
+                          , y = y # fix this
+                          , nfolds = nFolds)
+  } else {
+    linModel <- glmnet(embedMat
+                       , y = y # fix this
+                       , nfolds = nFolds)
+  }
+  
+  return(linModel)
+}

@@ -27,7 +27,8 @@ GetTreeTable <- function(featureNames, model){
   # xgboost 0-indexes trees/node ids, so 1-index them.
   trees[, Tree := Tree + 1]
   trees[, Node := Node + 1]
-  
+  trees[, Split := as.numeric(Split)]
+
   # change xgboost tree learner representation to something more intuitive
   for(field in c('ID', 'Yes', 'No', 'Missing')){
     trees[, eval(field) := unlist(lapply(get(field)
@@ -49,6 +50,8 @@ GetTreeTable <- function(featureNames, model){
 #' @param x input data (matrix, data.frame, or data.table). Shape is n x p.
 #' @param tree processed data.table output from xgboost::xgb.model.dt.tree
 #' @return binary embedding matrix. Of shape n x #-terminal-nodes-in-tree
+#' @useDynLib fbboost
+#' @importFrom Rcpp sourceCpp
 EmbedInTree <- function(x, tree){
   
   # param checking
@@ -63,6 +66,9 @@ EmbedInTree <- function(x, tree){
     stop('Submit one tree at a time. tree parameter must have one row per node.')
   }
   
+  # Ensure that the tree is ordered by ascending Node ID.
+  tree <- tree[order(Node)]
+  
   # output storage
   embeddedMat <- matrix(0
                         , nrow = nObs
@@ -70,33 +76,41 @@ EmbedInTree <- function(x, tree){
   
   # embed all observations in tree space
   for(i in 1:nObs){
-    xVec <- x[i, ]
-    node <- 1
-    isLeaf <- FALSE
+    node <- ThroughTree(x[i, ]
+                        , Node = tree[, Node]
+                        , Feature = tree[, Feature]
+                        , Split = tree[, Split]
+                        , Yes = tree[, Yes]
+                        , No = tree[, No]
+                        , Missing = tree[, Missing])
     
-    while(!isLeaf){
-      feature <- tree[Node == node, Feature]
-      
-      # Determine if we're at terminal node. If not, continue.
-      if (feature == 'Leaf'){
-        isLeaf <- TRUE
-      
-      } else{
-        split <- tree[Node == node, Split]
-        xVal <- xVec[[feature]]
-        
-        # If value is missing, progress to the Missing node
-        if (is.na(xVal)){
-          node <- tree[Node == node, Missing]
-          
-        # If value not missing, progress to the Yes/No node
-        } else{
-          node <- ifelse(xVec[[feature]] < split
-                         , tree[Node == node, Yes]
-                         , tree[Node == node, No])
-        }
-      }
-    }
+    # xVec <- x[i, ]
+    # node <- 1
+    # isLeaf <- FALSE
+    # 
+    # while(!isLeaf){
+    #   feature <- tree[Node == node, Feature]
+    #   
+    #   # Determine if we're at terminal node. If not, continue.
+    #   if (feature == 'Leaf'){
+    #     isLeaf <- TRUE
+    #   
+    #   } else{
+    #     split <- tree[Node == node, Split]
+    #     xVal <- xVec[[feature]]
+    #     
+    #     # If value is missing, progress to the Missing node
+    #     if (is.na(xVal)){
+    #       node <- tree[Node == node, Missing]
+    #       
+    #     # If value not missing, progress to the Yes/No node
+    #     } else{
+    #       node <- ifelse(xVal < split
+    #                      , tree[Node == node, Yes]
+    #                      , tree[Node == node, No])
+    #     }
+    #   }
+    # }
     embeddedMat[i, node] <- 1
   }
   
