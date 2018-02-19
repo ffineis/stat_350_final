@@ -143,7 +143,7 @@ oheDT <- as.data.table(model.matrix(form
 # ----------------------------------------- #
 # 7. Write processed data to disk
 # ----------------------------------------- #
-cat('Writing data to', opt$output, '...\n\n', sep = '')
+cat('Writing data to', opt$output, '...\n', sep = '')
 
 # data that's ready for modeling...?
 outDT <- cbind(DT[, .SD, .SDcols = c(YVAR, CTSVARS, BINARIZEVARS)]
@@ -152,5 +152,6 @@ rm(oheDT)
 rm(DT)
 
 write.csv(outDT
-          , file = opt$output)
-cat('END PROCESSING\n')
+          , file = opt$output
+          , row.names = FALSE)
+cat('\n\nSUCCESSFUL. END PROCESSING\n')
