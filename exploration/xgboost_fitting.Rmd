@@ -21,7 +21,7 @@ require(doParallel)
 DT <- fread(file.path('..'
                       , 'data'
                       , 'train_5mil_processed.csv'))
-TRAIN_OBS <- 3e6
+TRAIN_OBS <- 5e5
 LEVELS <- c('pass', 'click') # (negative label, positive label)
 NCORES <- 2
 
@@ -72,7 +72,6 @@ The `carete::trainControl` function is a utility function for relaying our desir
 ```{r pressure, echo=FALSE}
 trControl <- caret::trainControl(method = 'cv'
                                  , number = 3
-                                 , p = 0.7
                                  , verboseIter = TRUE
                                  , classProbs = TRUE
                                  , summaryFunction = NormalizedEntropySummary
@@ -144,6 +143,5 @@ saveRDS(cvResults
         , file = file.path('..'
                            , 'data'
                            , modelFileName))
-
 ```
 
