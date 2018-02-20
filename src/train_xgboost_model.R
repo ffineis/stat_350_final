@@ -84,12 +84,12 @@ trControl <- caret::trainControl(method = 'cv'
                                  , summaryFunction = NormalizedEntropySummary
                                  , allowParallel = TRUE)
 
-tuneGrid <- expand.grid(nrounds = c(50, 125, 200)
-                        , max_depth = c(3, 5, 7)
-                        , eta = c(0.2)
-                        , gamma = c(1)
+tuneGrid <- expand.grid(nrounds = c(100, 150, 200)
+                        , max_depth = c(5)
+                        , eta = c(0.1, .3)
+                        , gamma = c(0.1)
                         , colsample_bytree = c(0.7)
-                        , subsample = c(0.5)
+                        , subsample = c(0.5, 0.75)
                         , min_child_weight = c(1))
 
 
@@ -102,7 +102,7 @@ registerDoParallel(cl)
 out <- lapply(list('NormalizedEntropy', 'NormalizedEntropySummary', 'LEVELS')
 			  , FUN = function(x){clusterExport(cl, x)})
 
-cat('TRAINING/CROSS VALIDATING MODEL WITH ', nrow(tuneGrid), 'UNIQUE PARAMETER SETTINGS\n')
+cat('TRAINING/CROSS VALIDATING MODEL WITH', nrow(tuneGrid), 'UNIQUE PARAMETER SETTINGS\n')
 cvResults <- caret::train(DT[trainIdx]
                           , y = y[trainIdx]
                           , method = 'xgbTree'
