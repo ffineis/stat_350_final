@@ -1,5 +1,5 @@
 ---
-title: "Fitting an Xgboost model to the Avazu CTR dataset."
+title: "Fitting and embedding an Xgboost model with the Avazu CTR dataset."
 author: "Frank Fineis"
 date: "2/18/2018"
 output: html_document
@@ -20,8 +20,8 @@ require(doParallel)
 
 DT <- fread(file.path('..'
                       , 'data'
-                      , 'train_5mil_processed.csv'))
-TRAIN_OBS <- 5e5
+                      , 'train_500k_processed.csv'))
+TRAIN_OBS <- 3e5
 LEVELS <- c('pass', 'click') # (negative label, positive label)
 NCORES <- 2
 
@@ -146,17 +146,50 @@ saveRDS(cvResults
 ```
 
 
-## Embed data into "tree space" using a fitted xgboost model
-Recall that the xgboost model is basically a set of decision trees. Once we've trained a model, we can "send" data through each tree. The trees each have some number of terminal nodes; that is, each tree learns rules about how to bucket a new datapoint. When we send data through the trees, we're embedding the data into a high dimensional "decision tree space." Once we get that embedding, we'll train a logistic classifier to learn the decision rules most important to classifying data as "click" or "pass."
+## Embed data into "decision tree space" using a fitted xgboost model
+Recall that the xgboost model is basically a set of decision trees. Once we've trained a model, we can "send" data through each tree. The trees each have some number of terminal nodes; that is, each tree learns rules about how to bucket a new datapoint. When we send data through the trees, we're embedding the data into a high dimensional "decision tree space." Once we get that embedding, we'll train a logistic classifier to learn the decision rules most important to classifying data as "click" or "pass." To embed data into the "decision tree space," use the `EmbedBooster` function in our `fbboost` package.
 
-```{r}
+```{r, eval=FALSE}
 library(fbboost)
 
+modelFileName <- 'caret_xgbtree_Feb_20_2018_10-25-56.rds'
 modelFile <- file.path('..'
                        , 'data'
                        , modelFileName)
 caretObj <- readRDS(modelFile)
 
 xgbModel <- caretObj$finalModel
-out <- EmbedBooster(DT[1:500], model = xgbModel, nJobs = 2)
+embedDat <- EmbedBooster(DT
+                         , model = xgbModel
+                         , nJobs = 2)
+saveRDS(embedDat
+        , file = file.path('..'
+                           , 'data'
+                           , 'embedded_data.rds'))
 ```
+
+## Train a logistic classifier with the embedded data
+```{r}
+require(glmnet, quietly = TRUE)
+
+embedDat <- readRDS(file.path('..'
+                              , 'data'
+                              , '500k_embed.rds'))
+embedX <- embedDat[['data']]
+
+glmModel <- glmnet(embedX[trainIdx, ]
+                   , y = y[trainIdx]
+                   , family = 'binomial'
+                   , alpha = 0.5
+                   , type.logistic = 'modified.Newton'
+                   , nlambda = 10)
+
+lassoModel <- glmnet(embedX[trainIdx, ]
+                     , y = y[trainIdx]
+                     , family = 'binomial'
+                     , alpha = 1
+                     , type.logistic = 'modified.Newton'
+                     , nlambda = 10)
+```
+
+
