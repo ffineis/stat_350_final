@@ -2,7 +2,7 @@
 # Script for processing raw Avazu click 
 # through rate data from Kaggle. Save to a .csv file.
 #
-# E.g. `$ Rscript preprocess_avazu_data.R -i train_5mil.csv -o train_5mil_processed.csv`
+# E.g. `$ Rscript process_avazu_data.R -i train_5mil.csv -o train_5mil_processed.csv`
 # ------------------------------------- #
 
 require(data.table, quietly = TRUE)
