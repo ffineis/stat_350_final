@@ -145,3 +145,18 @@ saveRDS(cvResults
                            , modelFileName))
 ```
 
+
+## Embed data into "tree space" using a fitted xgboost model
+Recall that the xgboost model is basically a set of decision trees. Once we've trained a model, we can "send" data through each tree. The trees each have some number of terminal nodes; that is, each tree learns rules about how to bucket a new datapoint. When we send data through the trees, we're embedding the data into a high dimensional "decision tree space." Once we get that embedding, we'll train a logistic classifier to learn the decision rules most important to classifying data as "click" or "pass."
+
+```{r}
+library(fbboost)
+
+modelFile <- file.path('..'
+                       , 'data'
+                       , modelFileName)
+caretObj <- readRDS(modelFile)
+
+xgbModel <- caretObj$finalModel
+out <- EmbedBooster(DT[1:500], model = xgbModel, nJobs = 2)
+```

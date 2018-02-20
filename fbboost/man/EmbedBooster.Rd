@@ -4,7 +4,7 @@
 \alias{EmbedBooster}
 \title{Embed data in high-dimensional space with a boosted tree model.}
 \usage{
-EmbedBooster(x, model)
+EmbedBooster(x, model, nJobs = parallel::detectCores() - 1)
 }
 \arguments{
 \item{x}{input data (matrix, data.frame, or data.table). Shape is n x p.}
