@@ -1,0 +1,195 @@
+---
+title: "Fitting and embedding an Xgboost model with the Avazu CTR dataset."
+author: "Frank Fineis"
+date: "2/18/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load training/test data
+```{r}
+require(caret)
+require(xgboost)
+require(data.table)
+require(ggplot2)
+require(parallel)
+require(doParallel)
+
+DT <- fread(file.path('..'
+                      , 'data'
+                      , 'train_500k_processed.csv'))
+TRAIN_OBS <- 3e5
+LEVELS <- c('pass', 'click') # (negative label, positive label)
+NCORES <- 2
+
+# Obtain training/test index split
+trainIdx <- c(1:TRAIN_OBS)
+testIdx <- setdiff(1:nrow(DT), trainIdx)
+
+# format X, Y data
+y <- as.factor(DT[, get('click')])
+levels(y) <- LEVELS
+
+DT <- DT[, click := NULL]
+```
+
+## Custom loss/metric function
+Recall that the authors of **Practical Lessons from Predicting Clicks on Ads at Facebook** use a custom objective function called *normalized entropy* (see Rmarkdown file in the `exploration` directory with a comparison of normalized entropy to regular binary crossentropy loss). The [xgboost](https://cran.r-project.org/web/packages/xgboost/vignettes/xgboostPresentation.html) package is amenable to writing custom loss functions, so we'll write one to implement normalized entropy in a way that will be amenable for use with the `caret::train` function. This function will operate on a vector of 
+
+```{r}
+NormalizedEntropy <- function(actualVec, predVec){
+  if(length(actualVec) != length(predVec)){
+    stop('Actual and predicted vectors need to have the same length')
+  }
+  
+  crossEntropy <- -((1+actualVec)/2)*log(predVec) - ((1-actualVec)/2)*log(1-predVec)
+  ctr <- mean(actualVec == 1)
+  ctrEntropy <- -ctr*log(ctr) - (1-ctr)*log(1-ctr)
+  return(mean(crossEntropy) / ctrEntropy)
+}
+
+NormalizedEntropySummary <- function(data, lev = LEVELS[2], model = NULL){
+  levels(data$obs) <- c('-1', '1')
+  out <- NormalizedEntropy(as.numeric(levels(data$obs))[data$obs]
+                           , predVec = data[, LEVELS[2]])
+  names(out) <- 'NormalizedEntropy'
+  return(out)
+}
+```
+
+
+
+
+## Tuning parameters
+
+We'll ask `caret::train` to search through a set of hyperparameter settings and figure out which one parameterizes an xgboost model the best for a particular metric of interest, where "best" refers to the best cross validated performance metrics.
+
+### `caret::trainControl`
+The `carete::trainControl` function is a utility function for relaying our desired model training settings to `caret::train`. For example, here we can tell `caret::train` to run cross validation with `k` folds, how many cores we'll let it train on, etc.
+```{r pressure, echo=FALSE}
+trControl <- caret::trainControl(method = 'cv'
+                                 , number = 3
+                                 , verboseIter = TRUE
+                                 , classProbs = TRUE
+                                 , summaryFunction = NormalizedEntropySummary
+                                 , allowParallel = TRUE)
+```
+
+The `summaryFunction` is crucial - this specifies your procedure for taking a vector of actual target observations and a vector of model predictions (e.g. a vector of 0's and 1's and a vector of predicted class probabilities) and summarizing  "metrics." The `twoClassSummary` function computes sensitivity, specificity and the area under the ROC curve. In `caret::train`, you can only set `metric` to a named element output from the `summaryFunction` function. So, for `twoClassSummary` we could, for example, specify `metric = 'ROC'`, but we could not specify `metric = 'accuracy'`. Our custom summaryFunction returns the `NormalizedEntropy` metric.
+
+### Tuning grid
+`R`'s base `expand.grid` function is great for creating all possible joint combinations out of $k$ distinct lists. For example, `expand.grid(c('A'), c('B', 'C'))` will return a data.frame of `("A", "B")` and `("A", "C")` vectors. We'll use this to define all possible combinations of hyperparameters we're interested in testing.
+
+```{r}
+tuneGrid <- expand.grid(nrounds = c(50, 100, 150)
+                        , max_depth = c(3, 5, 7)
+                        , eta = c(0.2)
+                        , gamma = c(1)
+                        , colsample_bytree = c(0.7) # only 70% of features to be considered when building a learner
+                        , subsample = c(0.5) # only consider 50% of data when building a learner
+                        , min_child_weight = c(1))
+
+```
+
+
+## Train with `caret::train`
+```{r}
+cluster <- makeCluster(NCORES)
+registerDoParallel(cluster)
+
+cvResults <- caret::train(DT[trainIdx]
+                          , y = y[trainIdx]
+                          , method = 'xgbTree'
+                          , metric = 'NormalizedEntropy'
+                          , trControl = trControl
+                          , tuneGrid = tuneGrid
+                          , maximize = FALSE)
+
+stopCluster(cluster)
+```
+
+### How'd we do on the test set?
+```{r}
+clickPreds <- predict(cvResults
+                      , newdata = DT[testIdx])
+clickProbs <- predict(cvResults
+                      , newdata = DT[testIdx]
+                      , type = 'prob')
+
+acc <- mean(clickPreds == y[testIdx])
+tpr <- mean(y[testIdx][which(clickPreds == LEVELS[2])] == LEVELS[2])
+cat('Test set metrics:\nAccuracy =', acc, ' ---- true positive rate:', tpr)
+
+rocSize <- 100000
+rocDownsampleIdx <- sample(1:length(testIdx), size = rocSize)
+rocActual <- as.numeric(y[testIdx] == LEVELS[2])[rocDownsampleIdx]
+rocPred <- clickProbs[[LEVELS[2]]][rocDownsampleIdx]
+roc.plot(rocActual
+         , rocPred
+         , thresholds = seq(0.01, 0.99, length.out = 50)
+         , main = 'Estimated ROC curve')
+```
+
+### Save cross validation/model training results
+```{r}
+modelFileName <- paste0('caret_xgbtree_'
+                        , format(Sys.time(), "%b_%d_%Y_%H-%M-%S")
+                        , '.rds')
+cat('Saving model CV results and trained model object to', modelFileName, '\n')
+saveRDS(cvResults
+        , file = file.path('..'
+                           , 'data'
+                           , modelFileName))
+```
+
+
+## Embed data into "decision tree space" using a fitted xgboost model
+Recall that the xgboost model is basically a set of decision trees. Once we've trained a model, we can "send" data through each tree. The trees each have some number of terminal nodes; that is, each tree learns rules about how to bucket a new datapoint. When we send data through the trees, we're embedding the data into a high dimensional "decision tree space." Once we get that embedding, we'll train a logistic classifier to learn the decision rules most important to classifying data as "click" or "pass." To embed data into the "decision tree space," use the `EmbedBooster` function in our `fbboost` package.
+
+```{r, eval=FALSE}
+library(fbboost)
+
+modelFileName <- 'caret_xgbtree_Feb_20_2018_10-25-56.rds'
+modelFile <- file.path('..'
+                       , 'data'
+                       , modelFileName)
+caretObj <- readRDS(modelFile)
+
+xgbModel <- caretObj$finalModel
+embedDat <- EmbedBooster(DT
+                         , model = xgbModel
+                         , nJobs = 2)
+saveRDS(embedDat
+        , file = file.path('..'
+                           , 'data'
+                           , 'embedded_data.rds'))
+```
+
+## Train a logistic classifier with the embedded data
+```{r}
+require(glmnet, quietly = TRUE)
+
+embedDat <- readRDS(file.path('..'
+                              , 'data'
+                              , '500k_embed.rds'))
+embedX <- embedDat[['data']]
+
+glmModel <- glmnet(embedX[trainIdx, ]
+                   , y = y[trainIdx]
+                   , family = 'binomial'
+                   , alpha = 0.5
+                   , type.logistic = 'modified.Newton'
+                   , nlambda = 10)
+
+lassoModel <- glmnet(embedX[trainIdx, ]
+                     , y = y[trainIdx]
+                     , family = 'binomial'
+                     , alpha = 1
+                     , type.logistic = 'modified.Newton'
+                     , nlambda = 10)
+```
+
+

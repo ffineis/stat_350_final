@@ -8,5 +8,7 @@ Maintainer: Frank Fineis <frankfineis2022@u.northwestern.edu>
 Description: Build boosted-tree-embedded classifier models based on Facebook's 2014 ADKDD paper, Practical Lessons from Predicting Clicks on Ads at Facebook.
 License: GPL
 RoxygenNote: 6.0.1
-Imports: xgboost
+Imports: xgboost,
+    Rcpp
 Depends: data.table
+LinkingTo: Rcpp

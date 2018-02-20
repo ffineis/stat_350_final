@@ -2,7 +2,7 @@
 # Script for processing raw Avazu click 
 # through rate data from Kaggle. Save to a .csv file.
 #
-# E.g. `$ Rscript preprocess_avazu_data.R -i train_5mil.csv -o train_5mil_processed.csv`
+# E.g. `$ Rscript process_avazu_data.R -i train_5mil.csv -o train_5mil_processed.csv`
 # ------------------------------------- #
 
 require(data.table, quietly = TRUE)
@@ -143,7 +143,7 @@ oheDT <- as.data.table(model.matrix(form
 # ----------------------------------------- #
 # 7. Write processed data to disk
 # ----------------------------------------- #
-cat('Writing data to', opt$output, '...\n\n', sep = '')
+cat('Writing data to', opt$output, '...\n', sep = '')
 
 # data that's ready for modeling...?
 outDT <- cbind(DT[, .SD, .SDcols = c(YVAR, CTSVARS, BINARIZEVARS)]
@@ -152,5 +152,6 @@ rm(oheDT)
 rm(DT)
 
 write.csv(outDT
-          , file = opt$output)
-cat('END PROCESSING\n')
+          , file = opt$output
+          , row.names = FALSE)
+cat('\n\nSUCCESSFUL. END PROCESSING\n')
