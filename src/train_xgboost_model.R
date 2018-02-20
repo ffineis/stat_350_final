@@ -84,13 +84,13 @@ trControl <- caret::trainControl(method = 'cv'
                                  , summaryFunction = NormalizedEntropySummary
                                  , allowParallel = TRUE)
 
-tuneGrid <- expand.grid(nrounds = c(100, 150, 200)
+tuneGrid <- expand.grid(nrounds = c(100)
                         , max_depth = c(5)
-                        , eta = c(0.1, .3)
+                        , eta = c(0.1, .3, 1)
                         , gamma = c(0.1)
                         , colsample_bytree = c(0.7)
                         , subsample = c(0.5, 0.75)
-                        , min_child_weight = c(1))
+                        , min_child_weight = c(1, 2))
 
 
 # ------------------------------------- #
