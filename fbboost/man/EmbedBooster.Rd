@@ -12,7 +12,7 @@ EmbedBooster(x, model, nJobs = parallel::detectCores() - 1)
 \item{model}{an xgb.Booster model}
 }
 \value{
-data embedded into high-dim space
+list of 2: 'data': data embedded into high-dim space, 'treeCuts': vector defining each tree's embedding.
 }
 \description{
 Embed a dataset into a high-dimensional binary space with a boosted tree model.

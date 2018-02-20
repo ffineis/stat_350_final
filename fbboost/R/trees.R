@@ -123,7 +123,7 @@ EmbedInTree <- function(x, tree){
 #' Largely just assembles trees from XGBoost model and sends data through each tree.
 #' @param x input data (matrix, data.frame, or data.table). Shape is n x p.
 #' @param model an xgb.Booster model
-#' @return data embedded into high-dim space
+#' @return list of 2: 'data': data embedded into high-dim space, 'treeCuts': vector defining each tree's embedding.
 #' @importFrom doMC registerDoMC
 #' @importFrom foreach foreach %dopar%
 #' @export
@@ -166,6 +166,8 @@ EmbedBooster <- function(x, model, nJobs=parallel::detectCores()-1){
   
   # columnwise concatenation of individual tree embeddings
   embeddedMat <- do.call(cbind, matList)
+  treeCuts <- unlist(lapply(matList, FUN = function(x){dim(x)[2]}))
   
-  return(embeddedMat)
+  return(list('data' = embeddedMat
+              , 'treeCuts' = treeCuts))
 }
