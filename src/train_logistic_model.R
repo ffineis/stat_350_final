@@ -136,6 +136,8 @@ if(opt$method == 'glmnet'){
                         , trControl = trControl)
 }
 
+parallel::stopCluster(cluster)
+
 
 # ------------------------------------- #
 # 4. Get class membership probabilities
