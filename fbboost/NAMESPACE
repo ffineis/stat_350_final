@@ -3,6 +3,8 @@
 export(EmbedBooster)
 export(EmbedInTree)
 export(GetTreeTable)
+export(NormalizedEntropy)
+export(NormalizedEntropySummary)
 importFrom(Rcpp,sourceCpp)
 importFrom(data.table,":=")
 importFrom(data.table,rbindlist)
