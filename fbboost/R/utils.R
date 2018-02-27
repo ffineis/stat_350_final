@@ -26,3 +26,12 @@ ValidateXgboostInput <- function(inputNames){
 		return(TRUE)
 	}
 }
+
+
+#' @name GetDefaultLevels
+#' @description Default levels of data for CTR marketing data.
+#' For use with a target vector whose classes are 'pass' and 'click', e.g.
+#' in web advertising datasets.
+GetDefaultLevels <- function(){
+	return(c('pass', 'click'))
+}
