@@ -138,6 +138,7 @@ if(opt$method == 'glmnet'){
   
   cvFit <- caret::train(x = x[trainIdx, ]
                         , y = y[trainIdx]
+                        , tuneGrid = tuneGrid
                         , method = 'glmnet'
                         , metric = 'NormalizedEntropy'
                         , trControl = trControl)
