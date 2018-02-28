@@ -27,10 +27,10 @@ NormalizedEntropy <- function(trueVec, predVec){
 #' @param model NULL required by caret::train
 #' @return named list
 #' @export
-NormalizedEntropySummary <- function(data, lev = GetDefaultLevels()[2], model = NULL){
+NormalizedEntropySummary <- function(data, lev = NULL, model = NULL){
   levels(data$obs) <- c('-1', '1')
   out <- NormalizedEntropy(as.numeric(levels(data$obs))[data$obs]
-                           , predVec = data[, lev])
+                           , predVec = data[, lev[2]])
   names(out) <- 'NormalizedEntropy'
   return(out)
 }
