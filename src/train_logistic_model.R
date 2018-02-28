@@ -64,6 +64,12 @@ if(fileEncoding == '.rds'){
   if('click' %in% colnames(DT)){
     DT[, click := NULL]
   }
+  cols <- names(DT)
+  for(col in cols){
+    meanVal <- mean(DT[, get(col)], na.rm = TRUE)
+    DT[is.na(get(col)), (col) := meanVal]
+  }
+
   x <- as.matrix(DT)
 }
 if(is.null(colnames(x))){
