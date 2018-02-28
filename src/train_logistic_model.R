@@ -133,7 +133,7 @@ if(opt$method == 'glmnet'){
 
   tuneGrid <- expand.grid(alpha = opt$alpha
                           , lambda = seq(0.001
-                                         , to = 2
+                                         , to = 1
                                          , length.out = opt$nlambda))
   
   cvFit <- caret::train(x = x[trainIdx, ]
@@ -141,7 +141,8 @@ if(opt$method == 'glmnet'){
                         , tuneGrid = tuneGrid
                         , method = 'glmnet'
                         , metric = 'NormalizedEntropy'
-                        , trControl = trControl)
+                        , trControl = trControl
+                        , maximize = FALSE)
 }
 
 parallel::stopCluster(cluster)
@@ -159,7 +160,8 @@ if(!is.null(testIdx)){
                      , type = 'response')
   } else {
     preds <- predict(cvFit
-                     , x[testIdx, ])
+                     , x[testIdx, ]
+                     , type = 'prob')
   }
 } else {
   preds <- NULL
