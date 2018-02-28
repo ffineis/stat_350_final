@@ -129,8 +129,8 @@ if(opt$method == 'glmnet'){
                                          , to = 2
                                          , length.out = opt$nlambda))
   
-  cvFit <- caret::train(x = x
-                        , y = y
+  cvFit <- caret::train(x = x[trainIdx, ]
+                        , y = y[trainIdx]
                         , method = 'glmnet'
                         , metric = 'NormalizedEntropy'
                         , trControl = trControl)
