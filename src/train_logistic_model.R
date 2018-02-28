@@ -105,6 +105,7 @@ levels(y) <-c('pass', 'click')
 cat('INITIALIZING PARALLEL CLUSTER\n')
 cluster <- parallel::makeCluster(opt$ncores)
 doParallel::registerDoParallel(cluster)
+out <- parallel::clusterEvalQ(cluster, library("fbboost"))
 
 if(opt$method == 'glmnet'){
   cat('TRAINING MODEL WITH', opt$nlambda, 'lambdas;', 'alpha =', opt$alpha, '\n')
