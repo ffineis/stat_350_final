@@ -8,6 +8,7 @@ output:
 ```{r, message=FALSE}
 require(data.table)
 require(ggplot2)
+require(GGally)
 ```
 
 First, load in the 5,000,000 rows selected from the original `train.csv` file. There are actually 40 million observations (it's a big dataset). Check out the data with `str`
@@ -144,5 +145,41 @@ hist(DT$C20[DT$C20 != -1]
      , main = 'C20!=-1 distribution')
 
 DT[C20 == -1, C20 := NA_integer_]
+DT[, C20 := as.numeric(C20)]
+replaceVal <- mean(DT[, C20], na.rm = TRUE)
+DT[which(is.na(get('C20'))), C20 := replaceVal]
+
+X <- data.table::copy(DT)
+X[, eval(ctsVars) := lapply(.SD, FUN = function(x){(x - mean(x))/sd(x)}), .SDcols = ctsVars]
 ```
+
+
+#### Study variables: intracorrelation, histograms, etc
+```{r}
+cat('Subset of correlation matrix:\n')
+corr <- cor(DT[, .SD, .SDcols = c('click', ctsVars)])
+corrPlot <- ggcorr(corr
+                   , label = TRUE) + 
+  ggtitle('Continuous variable correlation matrix') +
+  theme(plot.title = element_text(size = 16, face = 'bold'))
+ggsave(file.path('..'
+                 , 'report'
+                 , 'imgs'
+                 , 'cts_corr.png')
+       , plot = corrPlot)
+
+  
+pplot <- GGally::ggpairs(DT[sample(1:nrow(DT), 50000), .SD, .SDcols = c('click', ctsVars)]
+                         , upper = list('continuous' = 'points')
+                         , diag = list('continuous' = 'densityDiag')
+                         , title = 'Continuous pairwise scatter plot matrix')
+ggsave(file.path('..'
+                 , 'report'
+                 , 'imgs'
+                 , 'pairwise_cts_vars.png')
+       , plot = corrPlot)
+```
+
+
+
 
