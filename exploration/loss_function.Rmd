@@ -41,7 +41,7 @@ crossEntDT[, crossEntropy := -y*log(yHat) - (1-y)*log(1-yHat)]
 
 ggplot(crossEntDT
        , mapping = aes(x = yHat, y = crossEntropy, group = class, color = class)) +
-  geom_line() +
+  geom_line(size = 1.5) +
   ylab('cross entropy') +
   xlab(latex2exp::TeX('$\\hat{y}$ (predicted Pr(Y=1))')) +
   ggtitle('Cross entropy')
@@ -60,12 +60,19 @@ binCrossEntDT[, y := c(rep(-1, n), rep(1, n))]
 binCrossEntDT[, class := as.factor(get('y'))]
 binCrossEntDT[, crossEntropy := -((1+y)/2)*log(yHat) - ((1-y)/2)*log(1-yHat)]
 
-ggplot(binCrossEntDT
+plt <- ggplot(binCrossEntDT
        , mapping = aes(x = yHat, y = crossEntropy, group = class, color = class)) +
-  geom_line() +
+  geom_line(size = 1.5) +
   ylab('binary cross entropy') +
   xlab(latex2exp::TeX('$\\hat{y}$ (predicted Pr(Y=1))')) +
   ggtitle('Binary cross entropy')
+
+ggsave(file.path('..'
+                 , 'report'
+                 , 'imgs'
+                 , 'bin_logloss.png')
+       , plt)
+print(plt)
 ```
 
 
@@ -104,11 +111,18 @@ for(p in ctrs){
 lossDT <- data.table(ctr = c(ctrs, ctrs)
                      , loss = c(neLosses, binLogLosses)
                      , loss_type = factor(c(rep('NE', length(ctrs)), rep('Bin LL', length(ctrs)))))
-ggplot(lossDT[loss <= 50]
+plt <- ggplot(lossDT[loss <= 50]
        , mapping = aes(x = ctr, y = loss, group = loss_type, color = loss_type)) +
   geom_line(size = 1.5) +
   xlab('Background CTR') +
   ggtitle(TeX('Binary log loss vs Normalized binary log loss while $\\hat{y} = 0.5$'))
+
+ggsave(file.path('..'
+                 , 'report'
+                 , 'imgs'
+                 , 'bin_logloss_vs_ne.png')
+       , plt)
+print(plt)
 ```
 
 In line with the authors' claims, regular binary log loss is not independent of the background CTR. That is, when background CTR is close to either 0 or 1, it would be easy to build a model that minimizes binary log loss by simply predicting the CTR. This is undesirable - we wouldn't want the best option (in terms of loss) to happen to be the model that just outputs background CTR. As we can see though, we cannot employ this hack if using normalized entropy as an objective function, because loss is independent of the background CTR.
